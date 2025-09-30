@@ -31,4 +31,4 @@ cd security-checker
 pip install -r requirements.txt
 
 # Run the tool
-python security_checker.py
+python security_checker
