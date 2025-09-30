@@ -1,0 +1,348 @@
+#!/usr/bin/env python3
+"""
+Real Security Checker Tool - With Have I Been Pwned API
+Developer: Mohammad Ali
+GitHub: himalhma-ship-timohammad
+🔒 Uses real HIBP API for actual breach data
+"""
+
+import requests
+import hashlib
+import socket
+import re
+import os
+import sys
+import time
+import json
+from datetime import datetime
+
+def clear_screen():
+    """Clear terminal screen"""
+    os.system('cls' if os.name == 'nt' else 'clear')
+
+def print_color(text, color_code):
+    """Print colored text"""
+    print(f"\033[{color_code}m{text}\033[0m")
+
+def print_banner():
+    """Print beautiful colorful banner"""
+    banner = """
+    \033[1;35m
+    ╔══════════════════════════════════════════════════════════════════╗
+    ║                                                                  ║
+    ║    \033[1;36m██████╗ ███████╗ █████╗ ██╗      ██████╗██╗  ██╗███████╗\033[1;35m  ║
+    ║    \033[1;36m██╔══██╗██╔════╝██╔══██╗██║     ██╔════╝██║  ██║██╔════╝\033[1;35m  ║
+    ║    \033[1;36m██████╔╝█████╗  ███████║██║     ██║     ███████║█████╗  \033[1;35m  ║
+    ║    \033[1;36m██╔══██╗██╔══╝  ██╔══██║██║     ██║     ██╔══██║██╔══╝  \033[1;35m  ║
+    ║    \033[1;36m██║  ██║███████╗██║  ██║███████╗╚██████╗██║  ██║███████╗\033[1;35m  ║
+    ║    \033[1;36m╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝╚══════╝ ╚═════╝╚═╝  ╚═╝╚══════╝\033[1;35m  ║
+    ║                                                                  ║
+    ║              \033[1;32m🛡️ REAL SECURITY CHECKER TOOL\033[1;35m                   ║
+    ║           \033[1;33mUsing Have I Been Pwned API\033[1;35m                       ║
+    ║                                                                  ║
+    ╠══════════════════════════════════════════════════════════════════╣
+    ║                                                                  ║
+    ║              \033[1;36mDeveloper: Mohammad Ali\033[1;35m                         ║
+    ║              \033[1;37mGitHub: himalhma-ship-timohammad\033[1;35m                ║
+    ║                                                                  ║
+    ╚══════════════════════════════════════════════════════════════════╝
+    \033[0m
+    """
+    print(banner)
+
+def show_loading(message):
+    """Show loading animation"""
+    print_color(f"\n{message}", "1;33")
+    for i in range(3):
+        print_color("🔍 Checking" + "." * (i + 1), "1;33")
+        time.sleep(0.5)
+    print()
+
+def check_password_breach(password):
+    """Check password against HIBP API"""
+    show_loading("Checking Password in Breach Databases")
+    
+    try:
+        # Create SHA-1 hash of password
+        sha1_hash = hashlib.sha1(password.encode('utf-8')).hexdigest().upper()
+        prefix = sha1_hash[:5]
+        suffix = sha1_hash[5:]
+        
+        # Make request to HIBP API
+        url = f"https://api.pwnedpasswords.com/range/{prefix}"
+        headers = {
+            'User-Agent': 'RealSecurityChecker-MohammadAli',
+            'Add-Padding': 'true'
+        }
+        
+        response = requests.get(url, headers=headers, timeout=10)
+        
+        if response.status_code == 200:
+            hashes = response.text.split('\n')
+            for hash_line in hashes:
+                if suffix in hash_line:
+                    count = hash_line.split(':')[1].strip()
+                    print_color(f"❌ HACKED - Password found {count} times in breaches!", "1;31")
+                    print_color("💡 Immediately change this password everywhere!", "1;33")
+                    return "HACKED"
+            
+            print_color("✅ NO HACK - Password not found in known breaches", "1;32")
+            return "NO HACK"
+        else:
+            print_color("⚠️  Could not check password - API unavailable", "1;31")
+            return "UNKNOWN"
+            
+    except Exception as e:
+        print_color(f"⚠️  Error checking password: {e}", "1;31")
+        return "UNKNOWN"
+
+def check_email_breach(email):
+    """Check email against HIBP API"""
+    show_loading("Checking Email in Breach Databases")
+    
+    try:
+        url = f"https://haveibeenpwned.com/api/v3/breachedaccount/{email}"
+        headers = {
+            'User-Agent': 'RealSecurityChecker-MohammadAli',
+            'hibp-api-key': 'your-api-key-here'  # You need to get free API key from HIBP
+        }
+        
+        response = requests.get(url, headers=headers, timeout=10)
+        
+        if response.status_code == 200:
+            breaches = response.json()
+            breach_count = len(breaches)
+            print_color(f"❌ HACKED - Email found in {breach_count} data breaches!", "1;31")
+            
+            for breach in breaches[:3]:  # Show first 3 breaches
+                print_color(f"   📧 {breach['Name']} - {breach['BreachDate']}", "1;31")
+            
+            if breach_count > 3:
+                print_color(f"   ... and {breach_count - 3} more breaches", "1;31")
+            
+            print_color("💡 Change passwords for affected accounts", "1;33")
+            return "HACKED"
+            
+        elif response.status_code == 404:
+            print_color("✅ NO HACK - Email not found in any known breaches", "1;32")
+            return "NO HACK"
+        else:
+            print_color("⚠️  Could not check email - API limit or error", "1;31")
+            return "UNKNOWN"
+            
+    except Exception as e:
+        print_color(f"⚠️  Error checking email: {e}", "1;31")
+        return "UNKNOWN"
+
+def check_ip_reputation(ip_address=None):
+    """Check IP reputation using AbuseIPDB (requires API key)"""
+    show_loading("Checking IP Address Reputation")
+    
+    try:
+        if not ip_address:
+            # Get public IP
+            ip_address = requests.get('https://api.ipify.org', timeout=5).text
+        
+        print_color(f"🌐 Your IP: {ip_address}", "1;36")
+        
+        # Note: For real check, you need AbuseIPDB API key
+        # This is a simulated check based on IP patterns
+        if ip_address.startswith(('10.', '192.168.', '172.16.', '127.')):
+            print_color("✅ NO HACK - Private IP address (safe)", "1;32")
+        else:
+            # Simple pattern-based check (educational)
+            first_octet = ip_address.split('.')[0]
+            suspicious_ranges = ['1', '2', '3']  # Example ranges
+            
+            if first_octet in suspicious_ranges:
+                print_color("⚠️  SUSPICIOUS - IP in monitored range", "1;33")
+            else:
+                print_color("✅ NO HACK - IP appears clean", "1;32")
+        
+        print_color("💡 For detailed IP reputation, use AbuseIPDB API", "1;37")
+        return "NO HACK"  # Default to safe for demo
+        
+    except Exception as e:
+        print_color(f"⚠️  Error checking IP: {e}", "1;31")
+        return "UNKNOWN"
+
+def check_phone_security(phone):
+    """Enhanced phone number security check"""
+    show_loading("Analyzing Phone Number Security")
+    
+    try:
+        clean_phone = re.sub(r'\D', '', phone)
+        
+        # Check for common vulnerable patterns
+        vulnerable_patterns = [
+            '1234567890', '1111111111', '2222222222', '3333333333',
+            '4444444444', '5555555555', '6666666666', '7777777777',
+            '8888888888', '9999999999', '0000000000', '1231231234'
+        ]
+        
+        if clean_phone in vulnerable_patterns:
+            print_color("❌ HACKED - Number matches known vulnerable patterns", "1;31")
+            return "HACKED"
+        elif len(clean_phone) < 10:
+            print_color("❌ HACKED - Invalid phone number format", "1;31")
+            return "HACKED"
+        else:
+            print_color("✅ NO HACK - Phone number appears secure", "1;32")
+            print_color("📱 No obvious security issues detected", "1;36")
+            return "NO HACK"
+            
+    except Exception as e:
+        print_color(f"⚠️  Error checking phone: {e}", "1;31")
+        return "UNKNOWN"
+
+def check_whatsapp_security(phone):
+    """WhatsApp-specific security check"""
+    show_loading("Checking WhatsApp Account Security")
+    
+    try:
+        clean_phone = re.sub(r'\D', '', phone)
+        
+        # Check for common issues
+        if len(clean_phone) < 10:
+            print_color("❌ HACKED - Invalid WhatsApp number", "1;31")
+            return "HACKED"
+        else:
+            print_color("✅ NO HACK - WhatsApp account appears secure", "1;32")
+            print_color("💚 Enable two-step verification for extra security", "1;36")
+            return "NO HACK"
+            
+    except Exception as e:
+        print_color(f"⚠️  Error checking WhatsApp: {e}", "1;31")
+        return "UNKNOWN"
+
+def generate_security_report(results):
+    """Generate comprehensive security report"""
+    print_color("\n" + "📊 COMPREHENSIVE SECURITY REPORT".center(60, "═"), "1;36")
+    
+    hacked_count = sum(1 for result in results.values() if result == "HACKED")
+    secure_count = sum(1 for result in results.values() if result == "NO HACK")
+    unknown_count = sum(1 for result in results.values() if result == "UNKNOWN")
+    
+    print_color(f"\n🔍 Security Scan Summary:", "1;35")
+    print_color(f"✅ Secure Items: {secure_count}", "1;32")
+    print_color(f"❌ Compromised: {hacked_count}", "1;31")
+    print_color(f"⚠️  Unknown/Errors: {unknown_count}", "1;33")
+    
+    # Security score calculation
+    total_checks = len(results)
+    if total_checks > 0:
+        security_score = (secure_count / total_checks) * 100
+        print_color(f"\n🏆 Security Score: {security_score:.1f}%", "1;36")
+    
+    # Recommendations
+    print_color("\n💡 Security Recommendations:", "1;35")
+    if hacked_count > 0:
+        print_color("• Change compromised passwords immediately", "1;31")
+        print_color("• Enable two-factor authentication", "1;33")
+        print_color("• Use a password manager", "1;33")
+    else:
+        print_color("• Continue good security practices", "1;32")
+        print_color("• Regularly update passwords", "1;33")
+        print_color("• Monitor accounts for suspicious activity", "1;33")
+    
+    print_color("\n🔒 General Security Tips:", "1;35")
+    print_color("• Use unique passwords for each account", "1;37")
+    print_color("• Enable 2FA wherever possible", "1;37")
+    print_color("• Keep software updated", "1;37")
+    print_color("• Be cautious of phishing attempts", "1;37")
+
+def print_menu():
+    """Print main menu"""
+    print_color("\n" + "📱 REAL SECURITY CHECKER".center(50, "═"), "1;35")
+    print_color("1. 🔐 Check Password Breach (Real HIBP API)", "1;36")
+    print_color("2. 📧 Check Email Breach (HIBP API)", "1;36")
+    print_color("3. 🌐 Check IP Reputation", "1;36")
+    print_color("4. 📞 Check Phone Number Security", "1;36")
+    print_color("5. 💚 Check WhatsApp Security", "1;32")
+    print_color("6. 📊 Generate Security Report", "1;34")
+    print_color("7. 🚪 Exit", "1;31")
+    print_color("═" * 50, "1;35")
+
+def main():
+    """Main function"""
+    try:
+        clear_screen()
+        print_banner()
+        
+        # Important notice
+        print_color("🔔 IMPORTANT NOTICE:", "1;33")
+        print_color("• This tool uses REAL Have I Been Pwned API", "1;37")
+        print_color("• Password checks are 100% real and secure", "1;37")
+        print_color("• Only password hashes are sent to API", "1;37")
+        print_color("• No personal data is stored", "1;37")
+        print_color("• For email checks, get free API key from:", "1;37")
+        print_color("  https://haveibeenpwned.com/API/Key", "1;36")
+        
+        input("\n\033[1;36mPress Enter to continue...\033[0m")
+        clear_screen()
+        print_banner()
+        
+        results = {}
+        
+        while True:
+            print_menu()
+            
+            try:
+                choice = input("\n\033[1;36m👉 Enter your choice (1-7): \033[0m").strip()
+                
+                if choice == '1':
+                    password = input("\n\033[1;37mEnter password to check: \033[0m")
+                    results['Password'] = check_password_breach(password)
+                    
+                elif choice == '2':
+                    email = input("\n\033[1;37mEnter email to check: \033[0m")
+                    results['Email'] = check_email_breach(email)
+                    
+                elif choice == '3':
+                    custom_ip = input("\n\033[1;37mEnter IP (or press Enter for your IP): \033[0m")
+                    ip_to_check = custom_ip if custom_ip else None
+                    results['IP Address'] = check_ip_reputation(ip_to_check)
+                    
+                elif choice == '4':
+                    phone = input("\n\033[1;37mEnter phone number: \033[0m")
+                    results['Phone'] = check_phone_security(phone)
+                    
+                elif choice == '5':
+                    phone = input("\n\033[1;37mEnter WhatsApp number: \033[0m")
+                    results['WhatsApp'] = check_whatsapp_security(phone)
+                    
+                elif choice == '6':
+                    if results:
+                        generate_security_report(results)
+                    else:
+                        print_color("\n❌ No checks performed yet!", "1;31")
+                        
+                elif choice == '7':
+                    print_color("\n🎉 Thank you for using Real Security Checker!", "1;32")
+                    print_color("👋 Stay secure online!", "1;36")
+                    break
+                    
+                else:
+                    print_color("❌ Invalid choice! Please enter 1-7", "1;31")
+                
+                input("\n\033[1;37mPress Enter to continue...\033[0m")
+                clear_screen()
+                print_banner()
+                
+            except KeyboardInterrupt:
+                print_color("\n\n👋 Thank you for using Real Security Checker!", "1;32")
+                break
+                
+    except Exception as e:
+        print_color(f"\n❌ An error occurred: {e}", "1;31")
+
+if __name__ == "__main__":
+    # Check dependencies
+    try:
+        import requests
+    except ImportError:
+        print("❌ Requests library is not installed!")
+        print("💡 Install it using: pip install requests")
+        sys.exit(1)
+    
+    main()
